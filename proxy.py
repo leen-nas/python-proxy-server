@@ -4,6 +4,7 @@
 
 import socket
 import threading
+import select
 from cache.cache_manager import CacheManager
 from logs.logger import get_logger
 from blacklist import is_blocked
@@ -12,8 +13,6 @@ from config import HOST, PORT, BUFFER_SIZE
 logger = get_logger()
 cache = CacheManager()
 
-# this function reads the raw HTTP request and pulls out
-# the important stuff like the host, port, and method
 def parse_request(raw_request):
     lines = raw_request.split('\r\n')
     first_line = lines[0]
@@ -27,6 +26,16 @@ def parse_request(raw_request):
 
     host = ''
     port = 80
+
+    # CONNECT requests have a different format: CONNECT host:443 HTTP/1.1
+    if method == 'CONNECT':
+        if ':' in url:
+            host, port = url.split(':')
+            port = int(port)
+        else:
+            host = url
+            port = 443
+        return method, host, port, None
 
     if url.startswith('http://'):
         url_stripped = url[7:]
@@ -50,8 +59,26 @@ def parse_request(raw_request):
     return method, host, port, clean_request.encode()
 
 
-# handles one client connection ,  receives request, checks cache,
-# forwards to server if needed, sends response back
+# opens a raw tunnel between client and server for HTTPS
+# we don't read or decrypt anything, just pass bytes both ways
+def tunnel_data(client_socket, server_socket):
+    while True:
+        readable, _, _ = select.select([client_socket, server_socket], [], [], 60)
+        if not readable:
+            break
+        for sock in readable:
+            try:
+                data = sock.recv(BUFFER_SIZE)
+                if not data:
+                    return
+                if sock is client_socket:
+                    server_socket.sendall(data)
+                else:
+                    client_socket.sendall(data)
+            except:
+                return
+
+
 def handle_client(client_socket, client_address):
     server_socket = None
     try:
@@ -64,6 +91,21 @@ def handle_client(client_socket, client_address):
             client_socket.close()
             return
 
+        # HTTPS tunnel . just relay bytes, no decryption
+        if method == 'CONNECT':
+            logger.info(f"HTTPS tunnel: {host}:{port}")
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.settimeout(10)
+            try:
+                server_socket.connect((host, port))
+            except Exception as e:
+                logger.error(f"Could not connect to {host}:{port} - {e}")
+                client_socket.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+                return
+            client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            tunnel_data(client_socket, server_socket)
+            return
+
         logger.info(f"Request from {client_address[0]} | {method} {host}:{port}")
 
         # check if this site is blocked
@@ -74,7 +116,8 @@ def handle_client(client_socket, client_address):
             return
 
         # check if we already have this response saved in cache
-        cached = cache.get(host + str(port))
+        # using host+port+url as key so /index and /about are cached separately
+        cached = cache.get(host + str(port) + url)
         if cached:
             logger.info(f"Cache hit: {host}")
             client_socket.sendall(cached)
@@ -95,4 +138,33 @@ def handle_client(client_socket, client_address):
             response += chunk
 
         # save to cache for next time and send back to client
-        cache.set(host + str(port), response)
+        cache.set(host + str(port) + url, response)
+        client_socket.sendall(response)
+        logger.info(f"Response sent to {client_address[0]} | {len(response)} bytes")
+
+    except Exception as e:
+        logger.error(f"Error: {client_address} - {e}")
+    finally:
+        client_socket.close()
+        if server_socket:
+            server_socket.close()
+
+
+# starts the server and keeps listening for new clients
+def start_proxy():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((HOST, PORT))
+    server.listen(50)
+
+    logger.info(f"Proxy listening on {HOST}:{PORT}")
+    print(f"Proxy running on port {PORT}, waiting for connections...")
+
+    while True:
+        client_socket, client_address = server.accept()
+        thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
+        thread.daemon = True
+        thread.start()
+
+if __name__ == "__main__":
+    start_proxy()
