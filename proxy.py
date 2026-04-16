@@ -8,6 +8,7 @@ import select
 from cache.cache_manager import CacheManager
 from logs.logger import get_logger
 from blacklist import is_blocked
+from whitelist import is_allowed
 from config import HOST, PORT, BUFFER_SIZE
 
 logger = get_logger()
@@ -107,6 +108,8 @@ def handle_client(client_socket, client_address):
             return
 
         logger.info(f"Request from {client_address[0]} | {method} {host}:{port}")
+
+        
 
         # check if this site is blocked
         if is_blocked(host):
