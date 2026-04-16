@@ -8,7 +8,6 @@ import select
 from cache.cache_manager import CacheManager
 from logs.logger import get_logger
 from blacklist import is_blocked
-from whitelist import is_allowed
 from config import HOST, PORT, BUFFER_SIZE
 
 logger = get_logger()
@@ -107,6 +106,16 @@ def handle_client(client_socket, client_address):
         # HTTPS tunnel - just relay bytes, no decryption
         if method == 'CONNECT':
             logger.info(f"HTTPS tunnel: {host}:{port}")
+            if is_blocked(host):
+                logger.warning(f"BLOCKED HTTPS: {host}")
+
+                client_socket.sendall(
+                    b"HTTP/1.1 403 Forbidden\r\n"
+                    b"Connection: close\r\n"
+                    b"\r\n"
+                )
+                client_socket.close()
+                return
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.settimeout(10)
             try:
@@ -121,19 +130,14 @@ def handle_client(client_socket, client_address):
 
         logger.info(f"Request from {client_address[0]} | {method} {host}:{port}")
 
-        # check whitelist first
-        if not is_allowed(host):
-            logger.warning(f"NOT ALLOWED (whitelist): {host}")
-            client_socket.sendall(
-                b"HTTP/1.0 403 Forbidden\r\n\r\nBlocked by whitelist policy."
-            )
-            return
-
+        
+        print("HOST RECEIVED:", host)
         # check if this site is blocked
         if is_blocked(host):
             logger.warning(f"BLOCKED: {host}")
-            blocked_response = b"HTTP/1.0 403 Forbidden\r\n\r\nThis site is blocked by the proxy."
-            client_socket.sendall(blocked_response)
+            client_socket.sendall(
+                b"HTTP/1.0 403 Forbidden\r\n\r\nThis site is blocked by the proxy."
+            )
             return
 
         # check if we already have this response saved in cache
