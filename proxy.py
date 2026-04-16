@@ -8,6 +8,7 @@ import select
 from cache.cache_manager import CacheManager
 from logs.logger import get_logger
 from blacklist import is_blocked
+from admin import start_admin_interface, stats
 from config import HOST, PORT, BUFFER_SIZE
 
 logger = get_logger()
@@ -81,6 +82,8 @@ def tunnel_data(client_socket, server_socket):
 
 
 def handle_client(client_socket, client_address):
+    stats["requests"] += 1             #for admin interface
+    stats["active_connections"] += 1
     server_socket = None
     try:
         raw_request = client_socket.recv(BUFFER_SIZE).decode('utf-8', errors='ignore')
@@ -109,7 +112,7 @@ def handle_client(client_socket, client_address):
             logger.info(f"HTTPS tunnel: {host}:{port}")
             if is_blocked(host):
                 logger.warning(f"BLOCKED HTTPS: {host}")
-
+                stats["blocked"] += 1 #for admin interface
                 client_socket.sendall(
                     b"HTTP/1.1 403 Forbidden\r\n"
                     b"Connection: close\r\n"
@@ -135,6 +138,7 @@ def handle_client(client_socket, client_address):
         print("HOST RECEIVED:", host)
         # check if this site is blocked
         if is_blocked(host):
+            stats["blocked"] += 1 #for admin interface
             logger.warning(f"BLOCKED: {host}")
             client_socket.sendall(
                 b"HTTP/1.0 403 Forbidden\r\n\r\nThis site is blocked by the proxy."
@@ -146,9 +150,11 @@ def handle_client(client_socket, client_address):
         cached = cache.get(host + str(port) + url)
         if cached:
             logger.info(f"Cache hit: {host}")
+            stats["cache_hits"] += 1 #for admin interface
             client_socket.sendall(cached)
             return
 
+        stats["cache_misses"] += 1 #for admin interface
         # nothing in cache so forward the request to the real server
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.settimeout(10)
@@ -174,6 +180,7 @@ def handle_client(client_socket, client_address):
         client_socket.close()
         if server_socket:
             server_socket.close()
+        stats["active_connections"] -= 1
 
 
 # starts the server and keeps listening for new clients
@@ -185,7 +192,7 @@ def start_proxy():
 
     logger.info(f"Proxy listening on {HOST}:{PORT}")
     print(f"Proxy running on port {PORT}, waiting for connections...")
-
+    start_admin_interface()
     while True:
         client_socket, client_address = server.accept()
         # each client gets its own thread so multiple can connect at once
