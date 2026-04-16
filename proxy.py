@@ -109,7 +109,13 @@ def handle_client(client_socket, client_address):
 
         logger.info(f"Request from {client_address[0]} | {method} {host}:{port}")
 
-        
+        # check whitelist first
+        if not is_allowed(host):
+            logger.warning(f"NOT ALLOWED (whitelist): {host}")
+            client_socket.sendall(
+                b"HTTP/1.0 403 Forbidden\r\n\r\nBlocked by whitelist policy."
+            )
+            return
 
         # check if this site is blocked
         if is_blocked(host):
