@@ -59,6 +59,7 @@ def parse_request(raw_request):
     return method, host, port, clean_request.encode()
 
 
+# Bonus :   HTTPS CONNECT tunnel
 # opens a raw tunnel between client and server for HTTPS
 # we don't read or decrypt anything, just pass bytes both ways
 def tunnel_data(client_socket, server_socket):
