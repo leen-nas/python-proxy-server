@@ -88,11 +88,23 @@ def handle_client(client_socket, client_address):
             return
 
         method, host, port, clean_request = parse_request(raw_request)
+
+        # safely extract url from the first line of the request
+        try:
+            url = raw_request.split('\r\n')[0].split(' ')[1]
+        except:
+            url = '/'
+
         if not host:
             client_socket.close()
             return
 
-        # HTTPS tunnel . just relay bytes, no decryption
+        # if parsing failed and it's not HTTPS, nothing to forward
+        if method != 'CONNECT' and not clean_request:
+            client_socket.close()
+            return
+
+        # HTTPS tunnel - just relay bytes, no decryption
         if method == 'CONNECT':
             logger.info(f"HTTPS tunnel: {host}:{port}")
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -171,6 +183,7 @@ def start_proxy():
 
     while True:
         client_socket, client_address = server.accept()
+        # each client gets its own thread so multiple can connect at once
         thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
         thread.daemon = True
         thread.start()
