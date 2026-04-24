@@ -63,12 +63,14 @@ def generate_cert(hostname, ca_cert, ca_key):
 def tunnel_data(client_ssl, server_ssl):
     # relay decrypted data both ways
     while True:
-        readable, _, _ = select.select([client_ssl, server_ssl], [], [], 10)
+        readable, _, _ = select.select([client_ssl, server_ssl], [], [], 60)
         if not readable:
             break
         for sock in readable:
             try:
                 data = sock.recv(BUFFER_SIZE)
+                if sock is server_ssl:
+                    logger.info(f"Intercepted data from server: {data[:100]}")
                 if not data:
                     return
                 if sock is client_ssl:
