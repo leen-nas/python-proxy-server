@@ -14,6 +14,35 @@ from config import HOST, PORT, BUFFER_SIZE
 logger = get_logger()
 cache = CacheManager()
 
+def blocked_response(host):
+    """Return a full HTTP 403 response with an HTML block page."""
+    body = f"""\
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Access Denied</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; text-align: center; padding-top: 80px; }}
+        h1 {{ color: #cc0000; }}
+    </style>
+</head>
+<body>
+    <h1>Access Denied</h1>
+    <p>The website <strong>{host}</strong> is blocked by this proxy.</p>
+</body>
+</html>
+"""
+    response = (
+        "HTTP/1.1 403 Forbidden\r\n"
+        "Connection: close\r\n"
+        "Content-Type: text/html; charset=utf-8\r\n"
+        f"Content-Length: {len(body.encode('utf-8'))}\r\n"
+        "\r\n"
+        f"{body}"
+    )
+    return response.encode('utf-8')
+
 def parse_request(raw_request):
     lines = raw_request.split('\r\n')
     first_line = lines[0]
@@ -112,12 +141,8 @@ def handle_client(client_socket, client_address):
             logger.info(f"HTTPS tunnel: {host}:{port}")
             if is_blocked(host):
                 logger.warning(f"BLOCKED HTTPS: {host}")
-                stats["blocked"] += 1 #for admin interface
-                client_socket.sendall(
-                    b"HTTP/1.1 403 Forbidden\r\n"
-                    b"Connection: close\r\n"
-                    b"\r\n"
-                )
+                stats["blocked"] += 1
+                client_socket.sendall(blocked_response(host))
                 client_socket.close()
                 return
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -138,11 +163,9 @@ def handle_client(client_socket, client_address):
         print("HOST RECEIVED:", host)
         # check if this site is blocked
         if is_blocked(host):
-            stats["blocked"] += 1 #for admin interface
+            stats["blocked"] += 1 #counting for the admin interface
             logger.warning(f"BLOCKED: {host}")
-            client_socket.sendall(
-                b"HTTP/1.0 403 Forbidden\r\n\r\nThis site is blocked by the proxy."
-            )
+            client_socket.sendall(blocked_response(host))
             return
 
         # check if we already have this response saved in cache
