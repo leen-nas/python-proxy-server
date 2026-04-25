@@ -3,8 +3,8 @@
 A multithreaded HTTP/HTTPS caching proxy server with blacklist filtering, MITM interception, and a live admin dashboard.
 
 ## Team
-Leen Nassar
-Antonio Karam
+-Leen Nassar
+-Antonio Karam
 
 ## Requirements
 - Python 3.x
@@ -35,11 +35,11 @@ Antonio Karam
 - Flask-based admin dashboard
 
 ## Project Structure
-proxy.py — main proxy server (Leen)
-proxy_mitm.py — HTTPS MITM proxy (Leen)
-config.py — settings (Leen)
-admin.py — admin dashboard (Antonio)
-blacklist.py — URL filtering (Antonio)
-ca.crt — root CA certificate
-cache/cache_manager.py — caching logic (Antonio)
-logs/logger.py — logging (Antonio)
+-proxy.py , main proxy server (Leen)
+-proxy_mitm.py , HTTPS MITM proxy (Leen)
+-config.py , settings (Leen)
+-admin.py ,  admin dashboard (Antonio)
+-blacklist.py ,  URL filtering (Antonio)
+-ca.crt ,  root CA certificate
+-cache/cache_manager.py , caching logic (Antonio)
+-logs/logger.py , logging (Antonio)
