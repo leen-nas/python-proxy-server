@@ -1,29 +1,45 @@
-# CSC 430 - Computer Networks
-# Cache manager ,  stores responses so we don't fetch the same thing twice
-# Author: Lynn
-
+# Author: Antonio
 import time
 from config import CACHE_TIMEOUT, MAX_CACHE_SIZE
 
+
+class CacheEntry:
+    def __init__(self, data):
+        self.data = data
+        self.timestamp = time.time()
+
+
 class CacheManager:
     def __init__(self):
-        # url -> (response, time it was saved)
         self.cache = {}
 
-    def get(self, url):
-        if url in self.cache:
-            response, timestamp = self.cache[url]
-            # check if it's still fresh(current-when saved= less tahn 60 so fresh)
-            if time.time() - timestamp < CACHE_TIMEOUT: 
-                return response
+    def get(self, key):
+        if key in self.cache:
+            entry = self.cache[key]
+
+            # check expiration
+            if time.time() - entry.timestamp < CACHE_TIMEOUT:
+                return entry.data
             else:
-                # expired, so remove it
-                del self.cache[url]
+                # expired → remove
+                del self.cache[key]
+
         return None
 
-    def set(self, url, response):
-        # if cache is full remove the oldest entry first
+    def set(self, key, value):
+        # limit cache size
         if len(self.cache) >= MAX_CACHE_SIZE:
-            oldest = min(self.cache, key=lambda k: self.cache[k][1])
-            del self.cache[oldest]
-        self.cache[url] = (response, time.time())
+            # remove oldest item
+            oldest_key = min(self.cache, key=lambda k: self.cache[k].timestamp)
+            del self.cache[oldest_key]
+
+        self.cache[key] = CacheEntry(value)
+
+    def clear(self):
+        self.cache.clear()
+
+    def stats(self):
+        return {
+            "size": len(self.cache),
+            "max_size": MAX_CACHE_SIZE
+        }
