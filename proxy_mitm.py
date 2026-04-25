@@ -1,6 +1,5 @@
-# CSC 430 - Computer Networks
-# Bonus H - HTTPS MITM Proxy
-# Author: Lynn
+# Bonus: HTTPS MITM Proxy
+# Author: Leen
 # this intercepts HTTPS traffic using a fake certificate per domain
 # the browser trusts our CA so it accepts our fake certs
 

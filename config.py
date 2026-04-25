@@ -1,6 +1,6 @@
 # CSC 430 - Computer Networks
 # Config - all the settings in one place so they're easy to change
-# Author: Lynn
+# Author: Leen
 
 HOST = '0.0.0.0'          #listen & accept form all
 PORT = 8888               #send requests to this port

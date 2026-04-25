@@ -1,6 +1,4 @@
-# CSC 430 - Computer Networks
-# Proxy Server - main file
-# Author: Lynn
+# Author: Leen
 
 import socket
 import threading
@@ -160,7 +158,7 @@ def handle_client(client_socket, client_address):
         logger.info(f"Request from {client_address[0]} | {method} {host}:{port}")
 
         
-        print("HOST RECEIVED:", host)
+       
         # check if this site is blocked
         if is_blocked(host):
             stats["blocked"] += 1 #counting for the admin interface
